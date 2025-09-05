@@ -1,4 +1,4 @@
-import os
+import os, glob
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -16,6 +16,7 @@ import pandas as pd
 from logger import *
 from datetime import datetime
 
+
 log = logg()
 
 #Aqui, o script configura as opções para o WebDriver do Chrome. 
@@ -27,6 +28,16 @@ dataAtual = datetime.now().strftime("%d/%m/%Y")
 dataInicio = datetime.now().strftime("01/%m/%Y")
 
 options = Options()
+download_path = os.path.join(os.getcwd(),'downloads') 
+prefs = {
+        "download.default_directory": download_path,  # Define o diretório de download
+        "download.prompt_for_download": False,  # Evita a janela de escolha de local
+        "download.directory_upgrade": True,  # Permite sobrescrever diretórios existentes
+        "safebrowsing.enabled": True,  # Evita avisos do Chrome para arquivos baixados
+        "profile.default_content_setting_values.automatic_downloads": 1  # Aceita múltiplos downloads sem prompt
+    }
+
+options.add_experimental_option("prefs", prefs)
 
 options.add_argument("disable-infobars")
 options.add_argument("--disable-extensions")
@@ -40,6 +51,7 @@ driver = os.path.join(os.path.dirname(driver),'chromedriver.exe') if os.path.bas
 service = Service(driver)
 
 nav = webdriver.Chrome(service=service,options=options)
+
 
 #URL do site
 nav.get('https://viasulroute.syonet.com/portal/app.do?modulo=login#/login')
@@ -61,18 +73,21 @@ nav.find_element(By.XPATH,'/html/body/div[2]/div[3]/div/div/a[2]/button').click(
 
 sleep(1)
 WebDriverWait(nav, 30).until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, '/html/body/div/iframe')))
-sleep(1)
+sleep(2)
 #pesquisar pelo relatório 
 nav.find_element(By.XPATH, '/html/body/div[2]/div/div/div[1]/div[1]/div[1]/input').send_keys('[ VENDAS ] - KPI - Fluxo de Loja - Diário')
 sleep(1)
 
 #pesquisar
 WebDriverWait(nav, 30).until(EC.element_to_be_clickable((By.XPATH, '/html/body/div[2]/div/div/div[1]/div[1]/div[1]/button[1]'))).click()
-sleep(3)
 
 #entrando no relatório (KPI FLUXO DE LOJA)
-WebDriverWait(nav, 30).until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), '[ VENDAS ] - KPI - Fluxo de Loja - Diário')]"))).click()
-sleep(1)
+try:
+    WebDriverWait(nav, 60).until(EC.visibility_of_element_located((By.XPATH, "//a[contains(text(), '[ VENDAS ] - KPI - Fluxo de Loja - Diário')]"))).click()
+except:
+    sleep(5)
+    WebDriverWait(nav, 60).until(EC.visibility_of_element_located((By.XPATH, "//a[contains(text(), '[ VENDAS ] - KPI - Fluxo de Loja - Diário')]"))).click()
+sleep(2)
 
 #selecionar filtro (Tipo de venda - venda direta)
 WebDriverWait(nav, 30).until(EC.presence_of_element_located((By.XPATH, '/html/body/div[6]/div[2]/form/div[1]/div[2]/div/div[6]/div/div/ul/li[4]'))).click()
@@ -109,3 +124,28 @@ nav.find_element(By.XPATH, '/html/body/div[6]/div[2]/form/div[1]/div[2]/div/div[
 #Selecionando "Aplicar Filtro"
 nav.find_element(By.XPATH, '/html/body/div[6]/div[2]/form/div[2]/button[1]').click()
 sleep(1)
+
+#Selecionando "Exportar" 
+nav.find_element(By.XPATH, '/html/body/div[2]/div[1]/div/a[2]').click()
+sleep(5)
+
+#Selecionando o filtro "Marcar Todos" para selecionar todos os filtros disponíveis. 
+WebDriverWait(nav, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, '#ui-id-7 > div:nth-child(1) > accordion-group > div > div > div > accordion-item:nth-child(1) > div.syo-block-content.accordion-content > ul > li.syo-check-list-header.ng-scope'))).click()
+
+sleep(5)
+
+
+#Selecionando o tipo do arquivo que será exportado 
+Select(WebDriverWait(nav, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, '#ui-id-7 > div.row > div > select')))).select_by_visible_text('Planilha XLS')
+sleep(5)
+
+#Selecionando "exportar" novamente 
+nav.find_element(By.XPATH, '//button[contains(text(),"Exportar")]').click()
+
+for i in range(60): 
+    arquivos = glob.glob(os.path.join(os.getcwd(),'downloads','*.xls'))
+    if arquivos != []:
+        nav.quit()
+        # Retorna o caminho do arquivo baixado
+        break
+    sleep(1)
